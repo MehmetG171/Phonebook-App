@@ -9,28 +9,32 @@ Description: |
   which allows http (80) and SSH (22)connections from anywhere. WebServerASG Auto Scaling Group is using the LT 
   Launch Template in order to spin up instances needed. LT Launch Template is configured to prepare Python Flask 
   environment on EC2, and to deploy Phonebook Application on Flask Server after downloading the app code 
-  from Github repository.
+  from Github repository. RDS credentials are located in parameter store and fetch by boto3 in .py file.
 
 Parameters:
-
+  
   MyVPC:
-    Description: Choose your VPC
+    Description: VPC Id of your existing account
     Type: AWS::EC2::VPC::Id
+
+  KeyName:
+    Description: Please enter your Key pair
+    Type: AWS::EC2::KeyPair::KeyName 
 
   LatestAmiId:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
 
-  MyKeyPair:
-    Description: Choose your key pair
-    Type: AWS::EC2::KeyPair::KeyName
-
   Subnets:
-    Description: Choose your Subnets
+    Description:  Please select your subnets used by ALB
     Type: List<AWS::EC2::Subnet::Id>
-  
-Resources:
 
+  MyDbusername:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /clarusway/phonebook/username
+ 
+Resources:
+  
   ASG:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties: 
@@ -44,43 +48,25 @@ Resources:
       MinSize: 1  
       TargetGroupARNs:
         - !Ref TG
-      VPCZoneIdentifier: !Ref Subnets # not array 
-
-  ALBListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties: 
-      DefaultActions: # Required
-        - TargetGroupArn: !Ref TG
-          Type: forward
-      LoadBalancerArn: !Ref ALB # Required
-      Port: 80 # Required
-      Protocol: HTTP  # Required
-
-  ALB:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      IpAddressType: ipv4
-      Name: phonebook-alb
-      SecurityGroups: 
-        - !GetAtt ALBSecurityGroup.GroupId
-      Subnets: !Ref Subnets
-      Type: application
+      VPCZoneIdentifier: !Ref Subnets # not array
 
   LT:
     Type: AWS::EC2::LaunchTemplate
     Properties:
-      LaunchTemplateData:
-        ImageId: !Ref LatestAmiId
+      LaunchTemplateData: 
+        ImageId: !Ref LatestAmiId 
         InstanceType: t2.micro
-        KeyName: !Ref MyKeyPair
+        KeyName: !Ref KeyName 
+        IamInstanceProfile: 
+          Name: !Ref MyInstanceProfile
         SecurityGroupIds:
           - !GetAtt WebServerSecurityGroup.GroupId
-        TagSpecifications:
+        TagSpecifications: 
           - ResourceType: instance
             Tags:
               - Key: Name
                 Value: !Sub Web Server of ${AWS::StackName} Stack
-        UserData: 
+        UserData:
           Fn::Base64:
             !Sub 
               - |
@@ -94,41 +80,59 @@ Resources:
                 dnf install git -y
                 echo "${MyDBURI}" > /home/ec2-user/dbserver.endpoint
                 cd /home/ec2-user
-                TOKEN="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"
+                TOKEN=$(aws --region=us-east-1 ssm get-parameter --name /clarusway/phonebook/token --with-decryption --query 'Parameter.Value' --output text)
                 git clone https://$TOKEN@github.com/MehmetG171/Phonebook-App.git
-                python3 /home/ec2-user/Phonebook-App/phonebook-app.py
+                python3 /home/ec2-user/Phonebook-App/Solution-Parameter-Store/phonebook-app.py
               - MyDBURI: !GetAtt DBInstance.Endpoint.Address
-
+   
   TG:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      HealthCheckIntervalSeconds: 30
-      HealthCheckPath: /
-      HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 3
+    Properties: 
+      HealthyThresholdCount: 2 
+      HealthCheckTimeoutSeconds: 10
       Port: 80
-      Protocol: HTTP
-      UnhealthyThresholdCount: 2
+      Protocol: HTTP 
+      TargetType: instance 
+      UnhealthyThresholdCount: 3
       VpcId: !Ref MyVPC
+  
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: ipv4 
+      Scheme: internet-facing
+      SecurityGroups:
+        - !GetAtt ALBSecurityGroup.GroupId 
+      Subnets: !Ref Subnets 
+      Type: application
+  
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties: 
+      DefaultActions: # Required
+        - TargetGroupArn: !Ref TG
+          Type: forward
+      LoadBalancerArn: !Ref ALB # Required
+      Port: 80 # Required
+      Protocol: HTTP  # Required
 
   DBInstance:
     Type: AWS::RDS::DBInstance
     Properties:
       AllocatedStorage: 20
-      AllowMajorVersionUpgrade: false
-      AutoMinorVersionUpgrade: false
-      BackupRetentionPeriod: 0
+      AllowMajorVersionUpgrade: false 
+      AutoMinorVersionUpgrade: false 
+      BackupRetentionPeriod: 0 
       DBInstanceClass: db.t2.micro
-      DBInstanceIdentifier: phone-book-app
-      DBName: clarusway_phonebook
-      DBSecurityGroups: 
-        - !Ref DBSecurityGroup
-      Engine: mysql
-      EngineVersion: 8.0.32
-      MasterUserPassword: clarusway_1234
-      MasterUsername: admin
-      Port: 3306
+      DBInstanceIdentifier: phonebook-app 
+      DBName: clarusway_phonebook        
+      DBSecurityGroups:
+        - !Ref DBSecurityGroup 
+      Engine: MySQL
+      EngineVersion: 8.0.32 
+      MasterUsername: !Ref MyDbusername
+      MasterUserPassword: '{{resolve:ssm-secure:/clarusway/phonebook/password:1}}'
+      Port: 3306 
       PubliclyAccessible: true
 
   DBSecurityGroup:
@@ -142,7 +146,7 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: allow connection only from ALB secGrp # Required
-      GroupName: Webserver-sec-grp
+      GroupName: mehmet-ssh-http
       SecurityGroupIngress: 
         - IpProtocol: tcp
           FromPort: 80
@@ -158,7 +162,6 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: ssh and http # Required
-      GroupName: ALB-sec-grp
       SecurityGroupIngress: 
         - IpProtocol: tcp
           FromPort: 80
@@ -169,6 +172,27 @@ Resources:
           ToPort: 22
           CidrIp: 0.0.0.0/0
       VpcId: !Ref MyVPC
+
+  MyInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: SSMInstanceProfile
+      Roles:
+        - !Ref MySSMRole
+
+  MySSMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: SSMRoleWithManagedPolicyotto
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMFullAccess
 
 Outputs:
 
