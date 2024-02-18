@@ -1,4 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
+
 Description: |
   CloudFormation Template for Phonebook Application. This template creates Application Load Balancer 
   with Auto Scaling Group of Amazon Linux 2023  EC2 Instances which host Python Flask Web Application.
@@ -9,15 +10,19 @@ Description: |
   Launch Template in order to spin up instances needed. LT Launch Template is configured to prepare Python Flask 
   environment on EC2, and to deploy Phonebook Application on Flask Server after downloading the app code 
   from Github repository.
+
 Parameters:
+
   MyVPC:
     Description: Choose your VPC
     Type: AWS::EC2::VPC::Id
+
   LatestAmiId:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
     Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
+
   MyKeyPair:
-    Description: Choos your key pair
+    Description: Choose your key pair
     Type: AWS::EC2::KeyPair::KeyName
 
   Subnets:
@@ -25,6 +30,7 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
   
 Resources:
+
   ASG:
     Type: AWS::AutoScaling::AutoScalingGroup
     Properties: 
@@ -39,7 +45,6 @@ Resources:
       TargetGroupARNs:
         - !Ref TG
       VPCZoneIdentifier: !Ref Subnets # not array 
-
 
   ALBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -89,11 +94,10 @@ Resources:
                 dnf install git -y
                 echo "${MyDBURI}" > /home/ec2-user/dbserver.endpoint
                 cd /home/ec2-user
-                TOKEN="xxxxxxxxxxxxxxx"
-                git clone https://$TOKEN@github.com/awsdevopsteam/phonebook-web-app.git
-                python3 /home/ec2-user/phonebook-web-app/phonebook-app.py
+                TOKEN="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"
+                git clone https://$TOKEN@github.com/MehmetG171/Phonebook-App.git
+                python3 /home/ec2-user/Phonebook-App/phonebook-app.py
               - MyDBURI: !GetAtt DBInstance.Endpoint.Address
-
 
   TG:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -165,6 +169,7 @@ Resources:
           ToPort: 22
           CidrIp: 0.0.0.0/0
       VpcId: !Ref MyVPC
+
 Outputs:
   WebsiteURL:
     Value: !Sub 

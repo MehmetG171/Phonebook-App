@@ -1,4 +1,4 @@
-# Project-004 : Phonebook Application (Python Flask) deployed on AWS Application Load Balancer with Auto Scaling and Relational Database Service using AWS Cloudformation
+# Project: Phonebook Application (Python Flask) deployed on AWS Application Load Balancer with Auto Scaling and Relational Database Service using AWS Cloudformation
 
 ## Description
 
@@ -6,7 +6,7 @@ The Phonebook Application aims to create a phonebook application in Python and d
 
 ## Problem Statement
 
-![Project_004](003_phonebook.png)
+![Project](phonebook.png)
 
 - Your company has recently started a project that aims to serve as phonebook web application. You and your colleagues have started to work on the project. Your teammates have developed the UI part the project as shown in the template folder and they need your help to develop the coding part and deploying the app in development environment.
 
@@ -165,7 +165,6 @@ thousand                         Warning -> 'Invalid input: Phone number should 
 
 ### At the end of the project, students will be able to;
 
-
 - configure connection to the `MySQL` database.
 
 - work with a database using the SQL within Flask application.
@@ -199,7 +198,6 @@ thousand                         Warning -> 'Invalid input: Phone number should 
 - Use given app and html templates to warn user with invalid inputs.
 
 - Customize the application by hard-coding your name for the `developer_name` variable within html templates.
-
 
 ## Resources
 
